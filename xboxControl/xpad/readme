@@ -1,0 +1,5 @@
+make
+sudo make install
+sudo modprobe -r xpad
+sudo depmod -a
+sudo modprobe xpad
