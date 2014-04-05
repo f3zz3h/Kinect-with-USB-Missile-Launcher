@@ -76,11 +76,4 @@
 		<nature>org.eclipse.cdt.managedbuilder.core.managedBuildNature</nature>
 		<nature>org.eclipse.cdt.managedbuilder.core.ScannerConfigNature</nature>
 	</natures>
-	<linkedResources>
-		<link>
-			<name>Sample-Players</name>
-			<type>1</type>
-			<location>/home/luke/FinalYearProject/openni/nite/Samples/Bin/x64-Release/Sample-Players</location>
-		</link>
-	</linkedResources>
 </projectDescription>

@@ -8,21 +8,21 @@
 #include "SceneDrawer.h"
 #include <math.h>
 
-#ifdef USE_GLUT
 #if (XN_PLATFORM == XN_PLATFORM_MACOSX)
         #include <GLUT/glut.h>
 #else
         #include <GL/glut.h>
 #endif
-#else
-#include "opengles.h"
-#endif
 
 extern xn::UserGenerator g_UserGenerator;
 extern xn::DepthGenerator g_DepthGenerator;
 
+int max = 0, min = 0;
+
 #define MAX_DEPTH 10000
+
 float g_pDepthHist[MAX_DEPTH];
+
 unsigned int getClosestPowerOfTwo(unsigned int n)
 {
 	unsigned int m = 2;
@@ -175,10 +175,27 @@ void drawFilledCircle(XnUserID player, XnSkeletonJoint eJoint1, XnSkeletonJoint 
 				pt[0].Y + (radius * sin(j * twicePi / triangleAmount))
 
 				);
-			printf("Float: %f\n", pt[0].X);
+
+			/* Determine how far kinect can see target area.
+			 * Around 10% toward boundary gets close to limits
+			if ((int)pt[0].X > max)
+			{
+				max = (int) pt[0].X;
+				printf("Min %d :: Max %d\n",min,max );
+			}
+			else if ((int)pt[0].X < min)
+			{
+				min = (int) pt[0].X;
+				printf("Min %d :: Max %d\n",min,max );
+			}*/
+
 		}
 		radius -= 5;
-		glColor4f(i,i ,i ,i );
+		if ((i%2) == 0)
+			glColor3f(1,0 ,0 );
+		else
+			glColor3f(1,1 ,1 );
+
 		
 	}
 	glEnd();
@@ -190,10 +207,10 @@ void DrawDepthMap(const xn::DepthMetaData& dmd, const xn::SceneMetaData& smd, Xn
 	static unsigned char* pDepthTexBuf;
 	static int texWidth, texHeight;
 
-	 float topLeftX;
-	 float topLeftY;
-	 float bottomRightY;
-	 float bottomRightX;
+	float topLeftX;
+	float topLeftY;
+	float bottomRightY;
+	float bottomRightX;
 	float texXpos;
 	float texYpos;
 
@@ -220,6 +237,7 @@ void DrawDepthMap(const xn::DepthMetaData& dmd, const xn::SceneMetaData& smd, Xn
 		texcoords[0] = texXpos, texcoords[1] = texYpos, texcoords[2] = texXpos, texcoords[7] = texYpos;
 
 	}
+
 	unsigned int nValue = 0;
 	unsigned int nHistValue = 0;
 	unsigned int nIndex = 0;
@@ -335,33 +353,36 @@ void DrawDepthMap(const xn::DepthMetaData& dmd, const xn::SceneMetaData& smd, Xn
 		glPrintString(GLUT_BITMAP_HELVETICA_18, strLabel);
 	}
 
-	// Draw skeleton of user
-	if (player != 0)
-	{
-		glBegin(GL_LINES);
-		glColor4f(1-Colors[player%nColors][0], 1-Colors[player%nColors][1], 1-Colors[player%nColors][2], 1);
-		DrawLimb(player, XN_SKEL_HEAD, XN_SKEL_NECK);
+	//for (int i = 0; i < nUsers; ++i)
+	//{
+		// Draw skeleton of user
+		if (player != 0)
+		{
+			glBegin(GL_LINES);
+			glColor4f(1-Colors[player%nColors][0], 1-Colors[player%nColors][1], 1-Colors[player%nColors][2], 1);
+			DrawLimb(player, XN_SKEL_HEAD, XN_SKEL_NECK);
 
-		DrawLimb(player, XN_SKEL_NECK, XN_SKEL_LEFT_SHOULDER);
-		DrawLimb(player, XN_SKEL_LEFT_SHOULDER, XN_SKEL_LEFT_ELBOW);
-		DrawLimb(player, XN_SKEL_LEFT_ELBOW, XN_SKEL_LEFT_HAND);
+			DrawLimb(player, XN_SKEL_NECK, XN_SKEL_LEFT_SHOULDER);
+			DrawLimb(player, XN_SKEL_LEFT_SHOULDER, XN_SKEL_LEFT_ELBOW);
+			DrawLimb(player, XN_SKEL_LEFT_ELBOW, XN_SKEL_LEFT_HAND);
 
-		DrawLimb(player, XN_SKEL_NECK, XN_SKEL_RIGHT_SHOULDER);
-		DrawLimb(player, XN_SKEL_RIGHT_SHOULDER, XN_SKEL_RIGHT_ELBOW);
-		DrawLimb(player, XN_SKEL_RIGHT_ELBOW, XN_SKEL_RIGHT_HAND);
+			DrawLimb(player, XN_SKEL_NECK, XN_SKEL_RIGHT_SHOULDER);
+			DrawLimb(player, XN_SKEL_RIGHT_SHOULDER, XN_SKEL_RIGHT_ELBOW);
+			DrawLimb(player, XN_SKEL_RIGHT_ELBOW, XN_SKEL_RIGHT_HAND);
 
-		DrawLimb(player, XN_SKEL_LEFT_SHOULDER, XN_SKEL_TORSO);
-		DrawLimb(player, XN_SKEL_RIGHT_SHOULDER, XN_SKEL_TORSO);
+			DrawLimb(player, XN_SKEL_LEFT_SHOULDER, XN_SKEL_TORSO);
+			DrawLimb(player, XN_SKEL_RIGHT_SHOULDER, XN_SKEL_TORSO);
 
-		DrawLimb(player, XN_SKEL_TORSO, XN_SKEL_LEFT_HIP);
-		DrawLimb(player, XN_SKEL_LEFT_HIP, XN_SKEL_LEFT_KNEE);
-		DrawLimb(player, XN_SKEL_LEFT_KNEE, XN_SKEL_LEFT_FOOT);
+			DrawLimb(player, XN_SKEL_TORSO, XN_SKEL_LEFT_HIP);
+			DrawLimb(player, XN_SKEL_LEFT_HIP, XN_SKEL_LEFT_KNEE);
+			DrawLimb(player, XN_SKEL_LEFT_KNEE, XN_SKEL_LEFT_FOOT);
 
-		DrawLimb(player, XN_SKEL_TORSO, XN_SKEL_RIGHT_HIP);
-		DrawLimb(player, XN_SKEL_RIGHT_HIP, XN_SKEL_RIGHT_KNEE);
-		DrawLimb(player, XN_SKEL_RIGHT_KNEE, XN_SKEL_RIGHT_FOOT);
-		glEnd();
+			DrawLimb(player, XN_SKEL_TORSO, XN_SKEL_RIGHT_HIP);
+			DrawLimb(player, XN_SKEL_RIGHT_HIP, XN_SKEL_RIGHT_KNEE);
+			DrawLimb(player, XN_SKEL_RIGHT_KNEE, XN_SKEL_RIGHT_FOOT);
+			glEnd();
 
-		drawFilledCircle(player, XN_SKEL_TORSO, XN_SKEL_NECK);
-	}
+			drawFilledCircle(player, XN_SKEL_TORSO, XN_SKEL_NECK);
+		}
+	//}
 }

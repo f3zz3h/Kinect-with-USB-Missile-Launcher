@@ -1,44 +1,41 @@
 /*******************************************************************************
-*                                                                              *
-*   PrimeSense NITE 1.3 - Players Sample                                       *
-*   Copyright (C) 2010 PrimeSense Ltd.                                         *
-*                                                                              *
+*   Derrived from: PrimeSense NITE 1.3 - Players Sample
+*   Copyright (C) 2010 PrimeSense Ltd.
+*
+*   Edited by: Luke Hart (2013)
+*
 *******************************************************************************/
+#include <pthread.h>
+#include "SceneDrawer.h"
+#include "tracking.h"
 
 #include <XnOpenNI.h>
 #include <XnCodecIDs.h>
 #include <XnCppWrapper.h>
-#include "SceneDrawer.h"
 
-xn::Context g_Context;
-xn::ScriptNode g_ScriptNode;
-xn::DepthGenerator g_DepthGenerator;
-xn::UserGenerator g_UserGenerator;
-xn::Recorder* g_pRecorder;
-
-XnUserID g_nPlayer = 0;
-XnBool g_bCalibrated = FALSE;
-
-#ifdef USE_GLUT
 #if (XN_PLATFORM == XN_PLATFORM_MACOSX)
         #include <GLUT/glut.h>
 #else
         #include <GL/glut.h>
 #endif
-#else
-//#include "opengles.h"
-#include "kbhit.h"
-#endif
-//#include "signal_catch.h"
 
-#ifndef USE_GLUT
-static EGLDisplay display = EGL_NO_DISPLAY;
-static EGLSurface surface = EGL_NO_SURFACE;
-static EGLContext context = EGL_NO_CONTEXT;
-#endif
+#define CHECK_RC(rc, what)											\
+	if (rc != XN_STATUS_OK)											\
+	{																\
+		printf("%s failed: %s\n", what, xnGetStatusString(rc));		\
+		return rc;													\
+	}
 
-#define GL_WIN_SIZE_X 720
-#define GL_WIN_SIZE_Y 480
+#define CHECK_ERRORS(rc, errors, what)		\
+	if (rc == XN_STATUS_NO_NODE_PRESENT)	\
+{										\
+	XnChar strError[1024];				\
+	errors.ToString(strError, 1024);	\
+	printf("%s\n", strError);			\
+	return (rc);						\
+}
+
+
 #define START_CAPTURE_CHECK_RC(rc, what)												\
 	if (nRetVal != XN_STATUS_OK)														\
 {																					\
@@ -47,61 +44,29 @@ static EGLContext context = EGL_NO_CONTEXT;
 	return ;																	\
 }
 
+#define SAMPLE_XML_PATH "../../Data/Sample-User.xml"
+
+xn::Context g_Context;
+xn::ScriptNode g_ScriptNode;
+xn::DepthGenerator g_DepthGenerator;
+xn::UserGenerator g_UserGenerator;
+xn::Recorder* g_pRecorder;
+
 XnBool g_bPause = false;
 XnBool g_bRecord = false;
-
 XnBool g_bQuit = false;
-void StopCapture()
-{
-	g_bRecord = false;
-	if (g_pRecorder != NULL)
-	{
-		g_pRecorder->RemoveNodeFromRecording(g_DepthGenerator);
-		g_pRecorder->Release();
-		delete g_pRecorder;
-	}
-	g_pRecorder = NULL;
-}
 
-void CleanupExit()
-{
-	if (g_pRecorder)
-		g_pRecorder->RemoveNodeFromRecording(g_DepthGenerator);
-	StopCapture();
+XnUserID g_nPlayer = 0;
+XnBool g_bCalibrated = FALSE;
 
-	exit (1);
-}
+xyz mapped_xyz;
 
-void StartCapture()
-{
-	char recordFile[256] = {0};
-	time_t rawtime;
-	struct tm *timeinfo;
+bool moving = false;
 
-	time(&rawtime);
-	timeinfo = localtime(&rawtime);
-        XnUInt32 size;
-        xnOSStrFormat(recordFile, sizeof(recordFile)-1, &size,
-                 "%d_%02d_%02d[%02d_%02d_%02d].oni",
-                timeinfo->tm_year + 1900, timeinfo->tm_mon + 1, timeinfo->tm_mday, timeinfo->tm_hour, timeinfo->tm_min, timeinfo->tm_sec);
+#define GL_WIN_SIZE_X 720
+#define GL_WIN_SIZE_Y 480
 
-	if (g_pRecorder != NULL)
-	{
-		StopCapture();
-	}
-
-	XnStatus nRetVal = XN_STATUS_OK;
-	g_pRecorder = new xn::Recorder;
-
-	g_Context.CreateAnyProductionTree(XN_NODE_TYPE_RECORDER, NULL, *g_pRecorder);
-	START_CAPTURE_CHECK_RC(nRetVal, "Create recorder");
-
-	nRetVal = g_pRecorder->SetDestination(XN_RECORD_MEDIUM_FILE, recordFile);
-	START_CAPTURE_CHECK_RC(nRetVal, "set destination");
-	nRetVal = g_pRecorder->AddNodeToRecording(g_DepthGenerator, XN_CODEC_16Z_EMB_TABLES);
-	START_CAPTURE_CHECK_RC(nRetVal, "add node");
-	g_bRecord = true;
-}
+pthread_mutex_t moving_mutex = PTHREAD_MUTEX_INITIALIZER;
 
 XnBool AssignPlayer(XnUserID user)
 {
@@ -122,7 +87,7 @@ XnBool AssignPlayer(XnUserID user)
 }
 void XN_CALLBACK_TYPE NewUser(xn::UserGenerator& generator, XnUserID user, void* pCookie)
 {
-	#ifdef FIRST-RUN
+	#ifdef FIRST_RUN
 	if (!g_bCalibrated) // check on player0 is enough
 	{
 		printf("Look for pose\n");
@@ -224,7 +189,6 @@ void DrawProjectivePoints(XnPoint3D& ptIn, int width, double r, double g, double
 // this function is called each frame
 void glutDisplay (void)
 {
-
 	glClear (GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
 	// Setup the OpenGL viewpoint
@@ -235,11 +199,8 @@ void glutDisplay (void)
 	xn::SceneMetaData sceneMD;
 	xn::DepthMetaData depthMD;
 	g_DepthGenerator.GetMetaData(depthMD);
-	#ifdef USE_GLUT
+
 	glOrtho(0, depthMD.XRes(), depthMD.YRes(), 0, -1.0, 1.0);
-	#else
-	glOrthof(0, depthMD.XRes(), depthMD.YRes(), 0, -1.0, 1.0);
-	#endif
 
 	glDisable(GL_TEXTURE_2D);
 
@@ -249,35 +210,53 @@ void glutDisplay (void)
 		g_Context.WaitOneUpdateAll(g_DepthGenerator);
 	}
 
-		// Process the data
-		//DRAW
-		g_DepthGenerator.GetMetaData(depthMD);
-		g_UserGenerator.GetUserPixels(0, sceneMD);
-		DrawDepthMap(depthMD, sceneMD, g_nPlayer);
+	// Process the data
+	//DRAW
+	g_DepthGenerator.GetMetaData(depthMD);
+	g_UserGenerator.GetUserPixels(0, sceneMD);
+	DrawDepthMap(depthMD, sceneMD, g_nPlayer);
 
-		if (g_nPlayer != 0)
+	float* position = NULL;
+	position = positiontOfTarget(g_nPlayer);
+	if (position != NULL)
+	{
+		if(!moving)
 		{
-			XnPoint3D com;
-			g_UserGenerator.GetCoM(g_nPlayer, com);
-			if (com.Z == 0)
-			{
-				g_nPlayer = 0;
-				FindPlayer();
+			moving = true;
+			int rc;
+			pthread_t thread;
+			//pthread_mutex_lock(&moving_mutex);
+			//moving = true;
+			//pthread_mutex_unlock(&moving_mutex);
+
+			/* TODO: Mapped pos should always return a value but probably error check */
+			mapped_xyz.x = map_x(position[0]);
+			rc = pthread_create(&thread, NULL, move_to_position, NULL);
+
+			if (rc){
+				std::cout << "Error:unable to create thread," << rc << std::endl;
+				exit(-1);
 			}
 		}
+	}
+	delete position;
 
-	#ifdef USE_GLUT
-	glutSwapBuffers();
-	#endif
-}
-
-#ifdef USE_GLUT
-void glutIdle (void)
-{
-	if (g_bQuit) {
-		CleanupExit();
+	if (g_nPlayer != 0)
+	{
+		XnPoint3D com;
+		g_UserGenerator.GetCoM(g_nPlayer, com);
+		if (com.Z == 0)
+		{
+			g_nPlayer = 0;
+			FindPlayer();
+		}
 	}
 
+	glutSwapBuffers();
+}
+
+void glutIdle (void)
+{
 	// Display the frame
 	glutPostRedisplay();
 }
@@ -286,18 +265,10 @@ void glutKeyboard (unsigned char key, int x, int y)
 {
 	switch (key)
 	{
-	case 27:
-		CleanupExit();
 	case'p':
 		g_bPause = !g_bPause;
 		break;
-	case 'k':
-		if (g_pRecorder == NULL)
-			StartCapture();
-		else
-			StopCapture();
-		printf("Record turned %s\n", g_pRecorder ? "on" : "off");
-		break;
+
 	}
 }
 void glInit (int * pargc, char ** argv)
@@ -305,10 +276,12 @@ void glInit (int * pargc, char ** argv)
 	glutInit(pargc, argv);
 	glutInitDisplayMode(GLUT_RGB | GLUT_DOUBLE | GLUT_DEPTH);
 	glutInitWindowSize(GL_WIN_SIZE_X, GL_WIN_SIZE_Y);
-	glutCreateWindow ("Kinect Sentry Application");
+	glutCreateWindow ("Kinect Sentry Application | FYP Demo 2013");
 	//glutFullScreen();
 	glutSetCursor(GLUT_CURSOR_NONE);
 
+	/* Could use keyboard function for game controller instead as we
+	 * don't need any keyboard inputs in this applicaiton */
 	glutKeyboardFunc(glutKeyboard);
 	glutDisplayFunc(glutDisplay);
 	glutIdleFunc(glutIdle);
@@ -319,29 +292,12 @@ void glInit (int * pargc, char ** argv)
 	glEnableClientState(GL_VERTEX_ARRAY);
 	glDisableClientState(GL_COLOR_ARRAY);
 }
-#endif
-
-#define SAMPLE_XML_PATH "../../../Data/Sample-User.xml"
-
-#define CHECK_RC(rc, what)											\
-	if (rc != XN_STATUS_OK)											\
-	{																\
-		printf("%s failed: %s\n", what, xnGetStatusString(rc));		\
-		return rc;													\
-	}
-
-#define CHECK_ERRORS(rc, errors, what)		\
-	if (rc == XN_STATUS_NO_NODE_PRESENT)	\
-{										\
-	XnChar strError[1024];				\
-	errors.ToString(strError, 1024);	\
-	printf("%s\n", strError);			\
-	return (rc);						\
-}
-
 
 int main(int argc, char **argv)
 {
+
+	init_ml();
+
 	XnStatus rc = XN_STATUS_OK;
 	xn::EnumerationErrors errors;
 
@@ -375,13 +331,10 @@ int main(int argc, char **argv)
 	rc = g_UserGenerator.GetPoseDetectionCap().RegisterToPoseDetected(PoseDetected, NULL, hPoseCBs);
 	CHECK_RC(rc, "Register to pose detected");
 
-
-	#ifdef USE_GLUT
-	
-	printf("Using GL\n");
-	sleep(5);
+	//sleep(5);
 	glInit(&argc, argv);
 	glutMainLoop();
 
-	#endif
+	deinit_ml();
+
 }
