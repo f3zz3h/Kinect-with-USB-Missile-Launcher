@@ -48,10 +48,6 @@ int main (int argc, char **argv)
 	ioctl(fd, JSIOCGBUTTONS, &buttons);
 	ioctl(fd, JSIOCGNAME(NAME_LENGTH), name);
 
-	printf("Joystick (%s) has %d axes and %d buttons. Driver version is %d.%d.%d.\n",
-		name, axes, buttons, version >> 16, (version >> 8) & 0xff, version & 0xff);
-	printf("Testing ... (interrupt to exit)\n");
-
 	axis = new int[axes]();
 	button = new int[buttons]();
 
@@ -61,40 +57,63 @@ int main (int argc, char **argv)
 			exit (1);
 		}
 
-		switch(js.type & ~JS_EVENT_INIT) {
-		case JS_EVENT_BUTTON:
-			button[js.number] = js.value;
-			break;
-		case JS_EVENT_AXIS:
-			axis[js.number] = js.value;
-			break;
+		switch(js.type & ~JS_EVENT_INIT)
+		{
+			case JS_EVENT_BUTTON:
+				button[js.number] = js.value;
+				break;
+			case JS_EVENT_AXIS:
+				axis[js.number] = js.value;
+				break;
 		}
 
-		if (axis[0] > 0)
+		if ((axis[0] > 500) && (axis[1] > 500))
 		{
-			mc.turn(LEFT,0.05);
+			mc.turn(LUP,0.01);
 		}
-		else if (axis[0] < 0)
+		else if ((axis[0] > 500) && (axis[1] < -500))
 		{
-			mc.turn(RIGHT,0.05);
+			mc.turn(LDOWN,0.01);
 		}
+		else if ((axis[0] < -500) && (axis[1] > 500))
+		{
+			mc.turn(RUP,0.01);
+		}
+		else if ((axis[0] < -500) && (axis[1] < -500))
+		{
+			mc.turn(RDOWN,0.01);
+		}
+		else
+		{
+			if (axis[0] > 500)
+			{
+				mc.turn(LEFT,0.01);
+			}
+			else if (axis[0] < -500)
+			{
+				mc.turn(RIGHT,0.01);
+			}
 
-		if (axis[1] > 0)
-		{
-			mc.turn(UP,0.05);
-		}
-		else if (axis[1] < 0)
-		{
-			mc.turn(DOWN,0.05);
-		}
+			if (axis[1] > 500)
+			{
+				mc.turn(UP,0.01);
+			}
+			else if (axis[1] < -500)
+			{
+				mc.turn(DOWN,0.01);
+			}
 
-		if (button[0] > 0)
-		{
-			mc.turn(FIRE,0);
+			if (button[0] > 0)
+			{
+				mc.turn(FIRE,0);
+			}
 		}
-		printf("\n");
+		usleep(2000);
+		/*
 
-		if (axes) {
+		 printf("\n");
+
+		/if (axes) {
 			printf("Axes: ");
 			for (i = 0; i < axes; i++)
 				printf("%2d:%6d ", i, axis[i]);
@@ -107,5 +126,6 @@ int main (int argc, char **argv)
 		}
 
 		fflush(stdout);
+		*/
 	}
 }
