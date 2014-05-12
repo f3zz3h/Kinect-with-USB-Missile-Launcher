@@ -20,11 +20,11 @@ class MissileLauncher
 public:
 	//Setup and teardown
 	int init();
-	void deinit();
+	int deinit();
 	//Motion commands
-	void fire();
-	void stop();
-	void turn(MissileCmd direction, double duration);
+	int fire();
+	int stop();
+	int turn(MissileCmd direction, double duration);
 private:
 	int sendMsg(MissileCmd cmd);
 	libusb_device **devs; //pointer to pointer of device, used to retrieve a list of devices

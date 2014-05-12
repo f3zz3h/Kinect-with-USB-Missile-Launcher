@@ -2,9 +2,10 @@
 
 using namespace std;
 
-void MissileLauncher::fire()
+int MissileLauncher::fire()
 {
-	cout << "Fire!" << endl;
+	int retval = 1;
+
 	//need to wait 6.77 seconds to fire
 	struct timespec toWait;
 	toWait.tv_sec = 6;
@@ -13,34 +14,40 @@ void MissileLauncher::fire()
 	const struct timespec* delay = &toWait;
 	struct timespec* remainder;
 
+	usleep(10000);
 	//Start launch sequence and wait for launch
 	if (sendMsg(FIRE) < 0)
 	{
-		cerr << "Could not fire." << endl;
-		return;
+		retval = -1;
 	}
-	nanosleep(delay, remainder);
+	else
+	{
+		nanosleep(delay, remainder);
+	}
 
 	//Stop, so no more missiles launch
 	stop();
+
+	return retval;
 }
 
-void MissileLauncher::turn(MissileCmd direction, double delay)
+int MissileLauncher::turn(MissileCmd direction, double delay)
 {
+	int retval = 1;
 	if (direction == FIRE)
 	{
-		fire();
+		retval = fire();
 	}
 	else if (direction == STOP)
 	{
-		stop();
+		retval = stop();
 	}
 	else
 	{
 		if (delay == 0)
 		{
 			/* Start moving. This means it keeps moving until you tell it to stop */
-			sendMsg(direction);
+			retval = sendMsg(direction);
 		}
 		else
 		{
@@ -53,22 +60,21 @@ void MissileLauncher::turn(MissileCmd direction, double delay)
 			struct timespec* remainder;
 
 			//Start turn and wait for movement
-			sendMsg(direction);
+			retval = sendMsg(direction);
 			nanosleep(timedelay, remainder);
 
 			//Stop turning
 			stop();
 		}
 	}
+	return retval;
 }
 
-void MissileLauncher::stop()
+int MissileLauncher::stop()
 {
 	int ret = sendMsg(STOP);
-	if (ret < 0)
-	{
-		cerr << "Cannot stop, error: " << ret << endl;
-	}
+
+	return ret;
 }
 
 int MissileLauncher::sendMsg(MissileCmd control)
@@ -86,28 +92,31 @@ int MissileLauncher::sendMsg(MissileCmd control)
 
 	int ret = libusb_control_transfer(dev_handle, 0x21,0x09,0,0,data, 2, 0);
 	
-	delete[] data;
+	usleep(10000);
 
 	if (ret < 0)
 	{
-		cerr << "Cannot send command, error:" << ret << endl;
+		cerr << "Cannot send command, error:" << ret << " Cmd:" << control << endl;
+		libusb_reset_device(dev_handle);
+		return -1;
 	}
 
 	return ret;
 }
 
-void MissileLauncher::deinit()
+int MissileLauncher::deinit()
 {
 	int r = libusb_release_interface(dev_handle, 0); //release the claimed interface
 
-	if(r!=0) {
+	if(r!=0)
+	{
 		cout<<"Cannot Release Interface"<<endl;
-		return;
 	}
 	cout<<"Released Interface"<<endl;
 
 	libusb_close(dev_handle); //close the device we opened
 	libusb_exit(ctx); //needs to be called to end the
+	return r;
 }
 
 int MissileLauncher::init()
@@ -123,7 +132,7 @@ int MissileLauncher::init()
 		return 1;
 	}
 
-	libusb_set_debug(ctx, 3); //set verbosity level to 3, as suggested in the documentation
+	libusb_set_debug(ctx, 4);
 
 	cnt = libusb_get_device_list(ctx, &devs); //get the list of devices
 

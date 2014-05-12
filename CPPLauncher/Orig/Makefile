@@ -2,7 +2,7 @@
 #DEBUG = y
 CC=g++
 
-LDFLAGS=-lusb-1.0 -std=c++0x
+LDFLAGS=-lusb-1.0
 
 default:
 	#$(CC) launcher.cpp -o launcher $(LDFLAGS)

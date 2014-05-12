@@ -81,9 +81,9 @@ int turretLeft()
 
 	buffer[0] = 0;
 	buffer[1] = 0;	
-	int ret = libusb_control_transfer(dev_handle, 0x21, 0x09, 0, 0, data, 8, 0);
+	int ret = libusb_control_transfer(dev_handle, 0x21, 0x09, 0, 0, data, 34, 0);
 
-	ret = libusb_interrupt_transfer(dev_handle, 0x81, buffer, sizeof(buffer), &len, 1000);
+	ret = libusb_interrupt_transfer(dev_handle, 0x81, buffer, sizeof(buffer), &len, 100);
 	cout<<"Bytes"<<len;
 	for (int i = 0; i < 2; i++)	
 		cout<<(int)buffer[i]<<",";

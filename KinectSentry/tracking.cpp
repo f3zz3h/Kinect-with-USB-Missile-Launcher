@@ -8,6 +8,8 @@ extern xn::DepthGenerator g_DepthGenerator;
 
 float current_position[2];
 
+
+
 int init_ml()
 {
 	if(mc.init() != 0){
@@ -15,95 +17,177 @@ int init_ml()
 		return 0;
 	}
 
+	reset();
+}
+void reset()
+{
 	//Push past max so we garuntee we reached limits. Then return to centre.
+	usleep(10000);
 	mc.turn(LEFT, MAX_X_ML+1);
+	usleep(10000);
 	mc.turn(RIGHT,MID_X_ML);
-	mc.turn(DOWN, MAX_Y_ML+1);
-	mc.turn(UP, MID_Y_ML);
+	usleep(10000);
+	mc.turn(UP, MAX_Y_ML+1);
+	usleep(10000);
+	mc.turn(DOWN, MID_Y_ML);
+	usleep(10000);
 
-	//Assign current position to storage arage to keep track of location.
+	//Assign current position to storage array to keep track of location.
 	current_position[X_INDEX] = MID_X_ML;
 	current_position[Y_INDEX] = MID_Y_ML;
+	current_position[Z_INDEX] = 0;
 }
-/*void test()
-{
-	move_to_position(map_x(360));
-	move_to_position(map_x(100));
-	move_to_position(map_x(620));
-	move_to_position(map_x(720));
-	move_to_position(map_x(1));
-	move_to_position(map_x(360));
-}*/
 void deinit_ml()
 {
 	mc.deinit();
 }
-void* move_to_position(void*)
+void fire()
 {
-	float mapped_position = mapped_xyz.x;
+	mc.turn(FIRE,0);
+}
+int move_to_position()
+{
+	int ret = -1;
 	/* get difference between current and mapped for amount to move */
-	float move_amount =  mapped_position - current_position[X_INDEX];
+	float move_amount_x =  mapped_xyz.x - current_position[X_INDEX];
+	float move_amount_y =  mapped_xyz.y - current_position[Y_INDEX];
 
 	//Out of bounds check
-	if ((move_amount < -MAX_X_ML) || (move_amount > MAX_X_ML))
+	if (((mapped_xyz.x < -MAX_X_ML) || (mapped_xyz.x > MAX_X_ML)) &&
+		((mapped_xyz.y < -MAX_Y_ML) || (mapped_xyz.y > MAX_Y_ML))	)
 	{
-		std::cout<<"Out of bounds movement:"<<move_amount<<std::endl;
-		goto exit;
+		return OOB;
+	}
+	//Check movement amount is not 0
+	if ((move_amount_x == 0) && (move_amount_y == 0))
+	{
+		return NO_MOVE;
 	}
 
-	if (move_amount == 0)
+	/* Moves X */
+	if (move_amount_x != 0)
 	{
-		goto exit;
-	}
-	else if( move_amount < 0 )
-	{
-		std::cout<<"LEFT:move_amount"<<move_amount<<std::endl;
-		mc.turn(LEFT,-1*move_amount);
-		current_position[X_INDEX] = mapped_position;
-	}
-	else if( move_amount > 0 )
-	{
-		std::cout<<"RIGHT:move_amount"<<move_amount<<std::endl;
-		mc.turn(RIGHT,move_amount);
-		current_position[X_INDEX] = mapped_position;
+		usleep(1000);
+		/* Check the move to position is valid */
+		if ((mapped_xyz.x < KINECT_FOV_MAX_X) && (mapped_xyz.x > KINECT_FOV_MIN_X))
+		{
+			//printf("Move Amount X:%f\n", move_amount_x);
+			//printf("mapped = %f - current = %f", mapped_xyz.x , current_position[X_INDEX]);
+
+			// Move amount give direction
+			if( move_amount_x < 0 )
+			{
+				//Check movememnt amount is worth moving
+				if (move_amount_x*-1 > 0.02)
+				{
+					/* negative is left of Kinect frame thus move right */
+					if (mc.turn(RIGHT,0.05))
+					{
+						//check for successful movement before updating current position.
+						current_position[X_INDEX] -= 0.05; //mapped_xyz.x;
+						ret = SUCCESS;
+					}
+				}
+				else ret = NO_MOVE;
+			}
+			else if( move_amount_x > 0 )
+			{
+				//Check movememnt amount is worth moving
+				if (move_amount_x > 0.02)
+				{
+					if(mc.turn(LEFT,0.05))
+					{
+						//check for successful movement
+						current_position[X_INDEX] += 0.05;//mapped_xyz.x;
+						ret = SUCCESS;
+					}
+				}
+				else ret = NO_MOVE;
+			}
+		}
 	}
 
-	goto exit;
+	/* Moves Y */
+	if (move_amount_y != 0)
+	{
+		usleep(1000);
 
-exit:
-	pthread_mutex_lock(&moving_mutex);
-	moving = false;
-	pthread_mutex_unlock(&moving_mutex);
+		//printf("Move Amount Y:%f\n", move_amount_y);
+		//printf("Mapped Y = %f - current = %f\n", mapped_xyz.y , current_position[Y_INDEX]);
 
-	pthread_exit(NULL);
+		/*For now rudemntry FOV for kinect */
+		if ((mapped_xyz.y < KINECT_FOV_MAX_Y) && (mapped_xyz.y > KINECT_FOV_MIN_Y))
+		{
+			//Move amount give direction
+			if( move_amount_y < 0 )
+			{
+				//Check movement amount is worth moving
+				if (move_amount_y*-1 > 0.025)
+				{
+					if(mc.turn(UP,0.025))
+					{
+						//check for successful movement before updating current position.
+						current_position[Y_INDEX] -= 0.05; //mapped_xyz.y;
+						ret = SUCCESS;
+					}
+					//need to check here as is suceeded on horizontal we have moved.
+					else if (ret != SUCCESS)
+					{
+						ret = NO_MOVE;
+					}
+				}
+
+			}
+			else if( move_amount_y > 0 )
+			{
+				//Check movement amount is worth moving
+				if (move_amount_y > 0.025)
+				{
+					if(mc.turn(DOWN,0.025))
+					{
+						//check for successful movement
+						current_position[Y_INDEX] += 0.05; //mapped_xyz.y;
+						ret = SUCCESS;
+					}
+					else if (ret != SUCCESS)
+					{
+						ret = NO_MOVE;
+					}
+				}
+			}
+			usleep(2500);
+		}
+	}
+
+	return ret;
 }
 
-float map_x(float player_x_pos)
+void map_xyz(float* player_position)
 {
 	float range;
-	float x_val;
 
+	/* Mapping of X */
+	float player_x_pos = player_position[X_INDEX];
 	player_x_pos = (player_x_pos + MAX_PLAYER_X) / 2;
 
-	range = KINECT_FOV_MAX - KINECT_FOV_MIN;
-	x_val = ((range / MAX_PLAYER_X) * player_x_pos) + KINECT_FOV_MIN;
+	range = KINECT_FOV_MAX_X - KINECT_FOV_MIN_X;
+	player_position[X_INDEX]  = ((range / MAX_PLAYER_X) * player_x_pos) + KINECT_FOV_MIN_X;
 
-	/*
-	if (x_val > 0)
-		x_val += KINECT_FOV_MIN;
-	else
-		x_val -= KINECT_FOV_MIN;
-	*/
+	/* Mapping of Y,Z */
+	float player_y_pos = player_position[Y_INDEX];
+	player_y_pos = (player_y_pos + MAX_PLAYER_Y) / 2;
 
-	std::cout<<"X_VAL::"<<x_val<<std::endl;
-
-	/* Divide by 2 due to pos and negative range of x for kinect */
-	return x_val;
+	/* Range should be based from the z co-ords eg the distance to target.
+	 * for now we will use rudemntry values .25 -> 1
+	 */
+	range = 0.75;
+	player_position[Y_INDEX]  = ((range / MAX_PLAYER_Y) * player_y_pos) + 0.25;
+	player_position[Z_INDEX] = player_position[Z_INDEX];
 }
 
 float* positiontOfTarget(XnUserID player)
 {
-	float* return_data = new float[2];
+	float* return_data = new float[3];
 
 	XnSkeletonJoint eJoint1 = XN_SKEL_TORSO;
 	XnSkeletonJoint eJoint2 = XN_SKEL_NECK;
@@ -113,12 +197,12 @@ float* positiontOfTarget(XnUserID player)
 
 	if (!g_UserGenerator.GetSkeletonCap().IsCalibrated(player))
 	{
-		printf("not calibrated!\n");
+		//printf("not calibrated!\n");
 		return NULL;
 	}
 	if (!g_UserGenerator.GetSkeletonCap().IsTracking(player))
 	{
-		printf("not tracked!\n");
+		//printf("not tracked!\n");
 		return NULL;
 	}
 
@@ -147,15 +231,12 @@ float* positiontOfTarget(XnUserID player)
 	pt[0] = joint1.position;
 	pt[1] = joint2.position;
 
-	/* Our X and Y positions to return hopefully */
-	/* Gives values from -740 <-> +740 on xaxis.. not what was expected but we can deal with it */
-	//std::cout<<"X:"<<pt[0].X<<" - Y:"<<pt[0].Y<<std::endl;
-
 	/* Actually only using pt[0] AKA TORSO, should use half way between this and neck for
 	 * the widest part of the body as a target
 	 */
-	return_data[X_INDEX]=pt[0].X;
-	return_data[Y_INDEX]=pt[0].Y;
+	return_data[X_INDEX] = pt[0].X;
+	return_data[Y_INDEX] = pt[0].Y;
+	return_data[Z_INDEX] = pt[0].Z;
 
 	return return_data;
 }

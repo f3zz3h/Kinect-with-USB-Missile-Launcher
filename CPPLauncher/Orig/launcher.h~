@@ -10,9 +10,13 @@
 #include <unistd.h>
 #include <fcntl.h>
 
+extern libusb_device_handle *dev_handle; //a device handle
+extern libusb_device **devs; //pointer to pointer of device, used to retrieve a list of devices
+extern libusb_context *ctx; //a libusb session
+void* interupt(void*);
 typedef enum
 {
-	FIRE = 0x10, LEFT = 0x4, RIGHT = 0x8, UP = 0x1, DOWN = 0x2, STOP = 0x0
+	FIRE = 0x10, LEFT = 0x04, RIGHT = 0x08, UP = 0x01, DOWN = 0x02, STOP = 0x00
 } MissileCmd;
 
 class MissileLauncher
@@ -26,10 +30,9 @@ public:
 	void stop();
 	void turn(MissileCmd direction, double duration);
 private:
+	
 	int sendMsg(MissileCmd cmd);
-	libusb_device **devs; //pointer to pointer of device, used to retrieve a list of devices
-	libusb_device_handle *dev_handle; //a device handle
-	static libusb_context *ctx; //a libusb session
+	
 	
 };
  

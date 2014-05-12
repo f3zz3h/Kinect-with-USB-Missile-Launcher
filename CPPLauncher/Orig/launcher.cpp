@@ -75,16 +75,24 @@ int MissileLauncher::sendMsg(MissileCmd control)
 {
 	unsigned char *data = new unsigned char[8];
 
+	//cout<<"CONTROL:";
 	for (int i = 0; i < 8; i++)
 	{
-		data[i] = 0x0;
+		data[i] = 0x00;
+		//cout<<(int)data[i]<<",";
 	}
 
+	//cout<<endl;
+
 	//send control message
+	data[0] = 0x02;
 	data[1] = control;
+	//cout<<"Data 1: "<<(int)data[1]<<endl;
+
 	int ret = libusb_control_transfer(dev_handle, 0x21,0x09,0,0,data, 2, 0);
-	usleep(30000); 
-	//usb_control_msg(launcher, 0x21, 0x9, 0x200, 0, msg, 8, 1000);
+	
+	//delete[] data;
+
 	if (ret < 0)
 	{
 		cerr << "Cannot send command, error:" << ret << endl;
@@ -109,7 +117,7 @@ void MissileLauncher::deinit()
 
 int MissileLauncher::init()
 {
-	//*ctx = NULL;
+	ctx = NULL;
 
 	int r; //for return values
 	ssize_t cnt; //holding number of devices in list
@@ -124,25 +132,22 @@ int MissileLauncher::init()
 
 	cnt = libusb_get_device_list(ctx, &devs); //get the list of devices
 
+	//Check how many devices
 	if(cnt < 0) {
 		cout<<"Get Device Error"<<endl; //there was an error
 		return 1;
 	}
 
-	cout<<cnt<<" Devices in list."<<endl;
-
-	dev_handle = libusb_open_device_with_vid_pid(ctx, 0x2123, 0x1010); //idVendor=0x2123, idProduct=0x1010
+	//Open ML device  //idVendor=0x2123, idProduct=0x1010
+	dev_handle = libusb_open_device_with_vid_pid(ctx, 0x2123, 0x1010);
 
 	if(dev_handle == NULL)
 		cout<<"Cannot open device"<<endl;
 	else
 		cout<<"Device Opened"<<endl;
 
-	libusb_free_device_list(devs, 1); //free the list, unref the devices in it
-
-
-	//used to find out how many bytes were written
-	int actual; 
+	//free the list, unref the devices in it
+	libusb_free_device_list(devs, 1); 
 
 	//find out if kernel driver is attached
 	if(libusb_kernel_driver_active(dev_handle, 0) == 1) 

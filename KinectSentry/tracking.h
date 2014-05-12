@@ -9,8 +9,9 @@ typedef struct mapped_posistion {
     float y;
     float z;
 } xyz;
+
+
 extern xyz mapped_xyz;
-extern bool moving;
 extern pthread_mutex_t moving_mutex;
 
 #define X_INDEX 0
@@ -22,20 +23,28 @@ extern pthread_mutex_t moving_mutex;
 #define MAX_Y_ML 1.5
 #define MID_Y_ML 1
 
-#define KINECT_FOV_MAX 3.451666667
-#define KINECT_FOV_MIN 2.248333333
+#define KINECT_FOV_MAX_X 3.451666667
+#define KINECT_FOV_MIN_X 2.248333333
+#define KINECT_FOV_MAX_Y 1.00
+#define KINECT_FOV_MIN_Y 0.25
 
 #define MAX_PLAYER_X 720
 #define MIN_PLAYER_X -720
 #define MAX_PLAYER_Y 480
 
+#define OOB -1
+#define NO_MOVE 0
+#define SUCCESS 1
+
 extern float current_position[2];
 
 void deinit_ml();
 int init_ml();
-float map_x(float player_x_pos);
-void* move_to_position(void*);
+int move_to_position();
 void test();
 float* positiontOfTarget(XnUserID player);
+void map_xyz(float* player_position);
+void fire();
+void reset();
 
 #endif

@@ -44,7 +44,8 @@
 	return ;																	\
 }
 
-#define SAMPLE_XML_PATH "../../Data/Sample-User.xml"
+#define SAMPLE_XML_PATH "/home/luke/FinalYearProject/KinectSentry/Data/Sample-User.xml"
+//#define SAMPLE_XML_PATH "/Data/Sample-User.xml"
 
 xn::Context g_Context;
 xn::ScriptNode g_ScriptNode;
@@ -55,6 +56,7 @@ xn::Recorder* g_pRecorder;
 XnBool g_bPause = false;
 XnBool g_bRecord = false;
 XnBool g_bQuit = false;
+XnBool ml_track = true;
 
 XnUserID g_nPlayer = 0;
 XnBool g_bCalibrated = FALSE;
@@ -65,8 +67,6 @@ bool moving = false;
 
 #define GL_WIN_SIZE_X 720
 #define GL_WIN_SIZE_Y 480
-
-pthread_mutex_t moving_mutex = PTHREAD_MUTEX_INITIALIZER;
 
 XnBool AssignPlayer(XnUserID user)
 {
@@ -186,6 +186,63 @@ void DrawProjectivePoints(XnPoint3D& ptIn, int width, double r, double g, double
 	glFlush();
 
 }
+void* sentryFollow(void*)
+{
+	int noMoveCount = 0;
+	int firedCount = 0;
+	float* position = NULL;
+	int ret;
+	init_ml();
+
+	//Clear calibration text
+	system("clear");
+
+	while (ml_track = true)
+	{
+		position = positiontOfTarget(g_nPlayer);
+		if (position != NULL)
+		{
+			map_xyz(position);
+
+			mapped_xyz.x = position[0];
+			mapped_xyz.y = position[1];
+			mapped_xyz.z = position[2];
+			//printf("X = %f, Y = %f, Z = %f\n",mapped_xyz.x, mapped_xyz.y, mapped_xyz.z);
+			ret = move_to_position();
+
+			if (ret == 0)
+			{
+				noMoveCount++;
+			}
+			else
+			{
+				noMoveCount = 0;
+			}
+			if (noMoveCount == 50)
+			{
+				fire();
+				firedCount++;
+				noMoveCount = 0;
+			}
+			if (firedCount >= 4)
+			{
+				reset();
+				//ALLOW RELOAD TIME
+				system("clear");
+				printf("\n--------------------------------------"
+					   "\n-   YOU HAVE 10 SECONDS TO RELOAD    -"
+					   "\n--------------------------------------\n");
+				sleep(10);
+				noMoveCount = 0;
+				firedCount = 0;
+			}
+		}
+		usleep(10000);
+	}
+
+	delete position;
+
+}
 // this function is called each frame
 void glutDisplay (void)
 {
@@ -215,31 +272,6 @@ void glutDisplay (void)
 	g_DepthGenerator.GetMetaData(depthMD);
 	g_UserGenerator.GetUserPixels(0, sceneMD);
 	DrawDepthMap(depthMD, sceneMD, g_nPlayer);
-
-	float* position = NULL;
-	position = positiontOfTarget(g_nPlayer);
-	if (position != NULL)
-	{
-		if(!moving)
-		{
-			moving = true;
-			int rc;
-			pthread_t thread;
-			//pthread_mutex_lock(&moving_mutex);
-			//moving = true;
-			//pthread_mutex_unlock(&moving_mutex);
-
-			/* TODO: Mapped pos should always return a value but probably error check */
-			mapped_xyz.x = map_x(position[0]);
-			rc = pthread_create(&thread, NULL, move_to_position, NULL);
-
-			if (rc){
-				std::cout << "Error:unable to create thread," << rc << std::endl;
-				exit(-1);
-			}
-		}
-	}
-	delete position;
 
 	if (g_nPlayer != 0)
 	{
@@ -295,8 +327,8 @@ void glInit (int * pargc, char ** argv)
 
 int main(int argc, char **argv)
 {
+	/* TODO: Thread this so that kinect init can begin */
 
-	init_ml();
 
 	XnStatus rc = XN_STATUS_OK;
 	xn::EnumerationErrors errors;
@@ -331,10 +363,22 @@ int main(int argc, char **argv)
 	rc = g_UserGenerator.GetPoseDetectionCap().RegisterToPoseDetected(PoseDetected, NULL, hPoseCBs);
 	CHECK_RC(rc, "Register to pose detected");
 
-	//sleep(5);
+	/* Create thread to always be moving */
+	pthread_t thread;
+
+	rc = pthread_create(&thread, NULL, sentryFollow, NULL);
+
+	if (rc){
+		std::cout << "Error:unable to create thread," << rc << std::endl;
+		exit(-1);
+	}
+
+	/* Enter display loop */
 	glInit(&argc, argv);
 	glutMainLoop();
 
+	/* DIsplay loop finished thus deinit the ML*/
+	ml_track = false;
+	pthread_join(thread, NULL);
 	deinit_ml();
-
 }
